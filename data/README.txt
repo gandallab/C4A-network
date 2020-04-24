@@ -13,4 +13,4 @@ data/:
     phs000424.v7.pht002743.v7.p2.c1.GTEx_Sample_Attributes.GRU.txt
     phs000424.v7.pht002742.v7.p2.c1.GTEx_Subject_Phenotypes.GRU.txt
     GTEx_Analysis_v7_eQTL_expression_matrices/
-    GTEx_Analysis_v7_eQTL_covariates
+    GTEx_Analysis_v7_eQTL_covariates/
