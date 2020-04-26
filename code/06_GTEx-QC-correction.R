@@ -268,7 +268,7 @@ datMeta <- datMeta %>%
                                       ifelse(region == "Frontal_Cortex_BA9", "BA9",
                                              ifelse(region == "Hippocampus", "HIP",
                                                     ifelse(region == "Hypothalamus", "HYP",
-                                                           ifelse(region == "Nucleus_accumbens_basal_ganglia", "NAC", "PUT"))))))))
+                                                           ifelse(region == "Nucleus_accumbens_basal_ganglia", "NAc", "PUT"))))))))
 
 datMeta$region <- factor(datMeta$region, levels = c("BA9", "ACC", "HIP", "CDT", "PUT", "HYP", "CBH", "NAc"))
 
