@@ -7,7 +7,7 @@ path <- "/Users/minsookim/Desktop/C4A-network"
 # 01. Examine seeded network size wrt C4A copy number
 # ----------------------------------
 load(paste0(path, "/data/C4A-network.RData"))
-network %>% as_tibble() %>% print(width = Inf)
+network <- network %>% as_tibble() %>% print(width = Inf)
 
 df <- tibble()
 for (i in seq(0.3, 0.99, by = 0.01)) {
@@ -31,7 +31,7 @@ jpeg(paste0(path, "/results/network-size.jpeg"), units = "in", width = 5.5, heig
 
 df %>% 
   ggplot(aes(x = PCC, y = (value))) + 
-  geom_point(aes(color = CN), size = 0.6, shape = 19) + #geom_line(aes(0.5), col = "black") + 
+  geom_point(aes(color = CN), size = 0.6, shape = 19) + # geom_line(aes(0.5), col = "black") + 
   labs(x = "PCC cutoff", y = "# of genes passing threshold") +
   theme_classic() + theme(legend.position = c(0.85,0.5)) + 
   guides(color = guide_legend(expression(paste(italic("C4A"), " CN"))))
@@ -43,14 +43,14 @@ cor.test(network$`01.R`, network$`34.R`) # 0.65
 cor.test(network$`2.R`, network$`34.R`) # 0.83
 
 
-#### 02. PsychENCODE WGCNA module enrichment
+# 02. PsychENCODE WGCNA module enrichment
 # ----------------------------------
-source(paste0(path, "/code/03_Fisher-exact-test.R"))
+source(paste0(path, "/code/04_Fisher-exact-test.R"))
 
 PEmodules <- read.table(paste0(path, "/data/PsychENCODE-WGCNA-modules.txt"), header = TRUE)
 
 # Test top 500 positively co-expressed genes
-geneset <- network %>% arrange(desc(`34.R`)) %>% select(Gene) %>% slice(1:500) %>% t()
+geneset <- network %>% arrange(desc(`34.R`)) %>% select(Gene) %>% dplyr::slice(1:500) %>% t()
 
 df <- tibble()
 for (i in unique(PEmodules$Module)) {
@@ -65,7 +65,7 @@ df <- df %>%
 
 if (nrow(df) > 5) {
   df <- df %>% 
-    arrange(desc(OR)) %>% slice(1:5)
+    arrange(desc(OR)) %>% dplyr::slice(1:5)
 }
 
 ast_q <- rep("", nrow(df))
@@ -84,12 +84,12 @@ df %>%
 dev.off()
 
 
-#### 03. gProfiler pathway enrichment
+# 03. gProfiler pathway enrichment
 # ----------------------------------
 library(gProfileR)
 
 # Test top 500 negatively co-expressed genes
-geneset <- network %>% arrange(`34.R`) %>% slice(1:500)
+geneset <- network %>% arrange(`34.R`) %>% dplyr::slice(1:500)
 
 go <- gprofiler(query = geneset$Gene, correction_method = "fdr", ordered_query = TRUE, 
                custom_bg = network$Gene, min_set_size = 10, max_set_size = 1000, src_filter="GO", 
@@ -97,7 +97,7 @@ go <- gprofiler(query = geneset$Gene, correction_method = "fdr", ordered_query =
 
 if (nrow(go) > 5) {
   go <- go %>% 
-    arrange(p.value) %>% slice(1:5)
+    arrange(p.value) %>% dplyr::slice(1:5)
 }
 
 jpeg(paste0(path, "/results/pathway-neg.jpeg"), units = "in", width = 4, height = 3, res = 300)
@@ -111,7 +111,7 @@ go %>%
 dev.off()
 
 
-#### 04. Expression-weighted cell-type enrichment (EWCE)
+# 04. Expression-weighted cell-type enrichment (EWCE)
 # ----------------------------------
 library(EWCE)
 
@@ -129,7 +129,7 @@ colnames(ctd[[1]]$mean_exp) = colnames(ctd[[1]]$specificity) =
     "Vascular Leptomeningeal Cell")
 
 # Test top 500 negatively co-expressed genes
-geneset <- network %>% arrange(`34.R`) %>% select(Gene) %>% slice(1:500) %>% t()
+geneset <- network %>% arrange(`34.R`) %>% select(Gene) %>% dplyr::slice(1:500) %>% t()
 
 data("mouse_to_human_homologs")
 m2h <- unique(mouse_to_human_homologs[,c("HGNC.symbol","MGI.symbol")])
