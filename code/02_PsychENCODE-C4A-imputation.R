@@ -142,3 +142,40 @@ ggplot(df, aes(x = C4A, y = SLC39A10)) +
        y = expression(paste(italic("SLC39A10"), " expression"))) +
   guides(fill = FALSE) + ylim(5, 8.5) 
 
+
+# 03. Constructing C4A gene co-expression using all samples
+# ----------------------------------
+table(datMeta$C4A_CN)
+# 0   1   2   3   4 
+# 9 110 324  99  10 
+
+datExpr_low <- datExpr[, datMeta$C4A_CN < 2]
+datExpr_mid <- datExpr[, datMeta$C4A_CN == 2]
+datExpr_hig <- datExpr[, datMeta$C4A_CN > 2]
+
+prsCor = function(i, gene, datExpr) {
+  c = cor.test(datExpr[i, ], datExpr[gene, ], use = "pairwise.complete.obs")
+  dfPrs = data.frame(Gene = rownames(datExpr)[i], R = c$estimate, P = c$p.value)
+  return(dfPrs)
+}
+
+dfC4A_low <- data.frame()
+dfC4A_mid <- data.frame()
+dfC4A_hig <- data.frame()
+
+for (i in 1:nrow(datExpr)) {
+  if (i%%100 == 0) {print(i)}
+  
+  dfC4A_low <- rbind(dfC4A_low, prsCor(i, "ENSG00000244731", datExpr_low))
+  dfC4A_mid <- rbind(dfC4A_mid, prsCor(i, "ENSG00000244731", datExpr_mid))
+  dfC4A_hig <- rbind(dfC4A_hig, prsCor(i, "ENSG00000244731", datExpr_hig))
+}
+
+hist(dfC4A_low$P)
+hist(dfC4A_mid$P)
+hist(dfC4A_hig$P)
+
+dfC4A_low$FDR = p.adjust(dfC4A_low$P, "fdr")
+dfC4A_mid$FDR = p.adjust(dfC4A_mid$P, "fdr")
+dfC4A_hig$FDR = p.adjust(dfC4A_hig$P, "fdr")
+
