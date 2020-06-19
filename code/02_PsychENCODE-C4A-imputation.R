@@ -1,7 +1,7 @@
-rm(list = ls())
+source("code/04_Fisher-exact-test.R")
 options(stringsAsFactors = FALSE)
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network"
+path <- "~/Github//C4A-network"
 
 
 # 01. Effect of C4 copy number variation on gene expression
@@ -150,17 +150,19 @@ table(datMeta$C4A_CN)
 # 9 110 324  99  10 
 
 datExpr_low <- datExpr[, datMeta$C4A_CN < 2]
+datExpr_mid.ctl <- datExpr[, datMeta$C4A_CN == 2 & datMeta$Group == "CTL"]
 datExpr_mid <- datExpr[, datMeta$C4A_CN == 2]
 datExpr_hig <- datExpr[, datMeta$C4A_CN > 2]
 
 prsCor = function(i, gene, datExpr) {
   c = cor.test(datExpr[i, ], datExpr[gene, ], use = "pairwise.complete.obs")
-  dfPrs = data.frame(Gene = rownames(datExpr)[i], R = c$estimate, P = c$p.value)
+  dfPrs = data.frame(Seed = gene, Gene = rownames(datExpr)[i], R = c$estimate, P = c$p.value)
   return(dfPrs)
 }
 
 dfC4A_low <- data.frame()
 dfC4A_mid <- data.frame()
+dfC4A_mid.ctl = data.frame()
 dfC4A_hig <- data.frame()
 
 for (i in 1:nrow(datExpr)) {
@@ -168,14 +170,90 @@ for (i in 1:nrow(datExpr)) {
   
   dfC4A_low <- rbind(dfC4A_low, prsCor(i, "ENSG00000244731", datExpr_low))
   dfC4A_mid <- rbind(dfC4A_mid, prsCor(i, "ENSG00000244731", datExpr_mid))
+  dfC4A_mid.ctl <- rbind(dfC4A_mid.ctl, prsCor(i, "ENSG00000244731", datExpr_mid.ctl))
   dfC4A_hig <- rbind(dfC4A_hig, prsCor(i, "ENSG00000244731", datExpr_hig))
 }
 
 hist(dfC4A_low$P)
 hist(dfC4A_mid$P)
+hist(dfC4A_mid.ctl$P)
 hist(dfC4A_hig$P)
 
 dfC4A_low$FDR = p.adjust(dfC4A_low$P, "fdr")
 dfC4A_mid$FDR = p.adjust(dfC4A_mid$P, "fdr")
+dfC4A_mid.ctl$FDR = p.adjust(dfC4A_mid.ctl$P, "fdr")
 dfC4A_hig$FDR = p.adjust(dfC4A_hig$P, "fdr")
+
+
+gencode = read.csv("data/annotation.gene.gencodeV19.csv")
+gencode = gencode[match(rownames(datExpr), gencode$gene_id),]
+
+# Control only C4A seeded networks
+this_df = cbind(gene=gencode$gene_name, dfC4A_mid.ctl)
+complement_system = readxl::read_xlsx("results/manuscript/TableS1.xlsx",sheet = 1)
+
+xtabs(~ (FDR < 0.05) + (R > 0), this_df)
+
+
+# Complement Enrichment
+ORA(this_df$gene[this_df$FDR < .05 & this_df$R > 0], complement_system$`Approved symbol`,
+    this_df$gene, this_df$gene)
+#OR               Fisher p              
+# "17.2141244653363" "4.03102279425738e-17"
+
+ORA(this_df$gene[this_df$FDR < .05 & this_df$R < 0], complement_system$`Approved symbol`,
+    this_df$gene, this_df$gene)
+#OR               Fisher p              
+# 0   0.26
+
+# SynGO enrichment
+synGO = readxl::read_xlsx("data/GSEA-annotations/syngo_annotations.xlsx")
+
+ORA(this_df$gene[this_df$FDR < .05 & this_df$R > 0], unique(synGO$`human ortholog gene symbol`),
+    this_df$gene, this_df$gene)
+ORA(this_df$gene[this_df$FDR < .05 & this_df$R < 0], unique(synGO$`human ortholog gene symbol`),
+    this_df$gene, this_df$gene)
+#          OR               Fisher p                 -95%CI                 +95%CI 
+# "3.7725740859901" "1.23567031237039e-34"     "3.10861053939515"     "4.55368635278887" 
+
+write.csv(file="results/C4A-coexpressed-CN2-ctl-145.csv", this_df)
+
+library(gProfileR)
+go.down = gprofiler(query = this_df$gene[this_df$FDR < .05 & this_df$R < 0], correction_method = 'fdr', max_set_size = 1000,
+                           organism = 'hsapiens', custom_bg = this_df$gene, src_filter = c("GO", "KEGG", "REAC"))
+go.down = data.frame(Set="C4A-negative", go.down)
+go.up = gprofiler(query = this_df$gene[this_df$FDR < .05 & this_df$R > 0],  correction_method = 'fdr', max_set_size = 1000, 
+                           organism = 'hsapiens', custom_bg = this_df$gene, src_filter = c("GO", "KEGG", "REAC"))
+go.up = data.frame(Set="C4A-positive", go.up)
+
+write.csv(file="results/C4A-coexpressed-CN2-ctl-145-GO.csv", rbind(go.down, go.up))
+save(file="data/data_for_network_permutation.RData", datExpr_mid.ctl, gencode, complement_system, synGO)
+
+
+
+# 04. Test Boostrap
+# ----------------------------------
+library(parallel)
+runOneBootstrap = function(gene) {
+  this_net= do.call("rbind", mclapply(1:nrow(datExpr), prsCor, gene, datExpr_mid.ctl,mc.cores = 6))
+  this_net$Gene = gencode$gene_name[match(this_net$Gene, gencode$gene_id)]
+  this_net$FDR = p.adjust(this_net$P,'fdr')
+  up_fdr = this_net$Gene[this_net$FDR < .05 & this_net$R > 0]
+  down_fdr = this_net$Gene[this_net$FDR < .05 & this_net$R < 0]
+  fisher_up_complement = ORA(up_fdr, complement_system$`Approved symbol`,
+                             gencode$gene_name, gencode$gene_name)
+  fisher_down_synGO = ORA(down_fdr, unique(synGO$`human ortholog gene symbol`),
+                             gencode$gene_name, gencode$gene_name)
+  dfBootstrap = data.frame(seed = gencode$gene_name[match(gene, gencode$gene_id)],
+                           up_fdr= length(up_fdr), down_fdr = length(down_fdr),
+                           up_complement_OR = as.numeric(fisher_up_complement[[1]]),
+                           up_complement_P = as.numeric(fisher_up_complement[[2]]),
+                           down_synGO_OR = as.numeric(fisher_down_synGO[[1]]),
+                           down_synGO_P = as.numeric(fisher_down_synGO[[2]]))
+  return(dfBootstrap)
+}
+
+
+df_boot = do.call("rbind", lapply(as.list(rownames(datExpr_mid.ctl)[1:100]), runOneBootstrap))
+df_boot100to1000 = do.call("rbind", lapply(as.list(rownames(datExpr_mid.ctl)[101:1000]), runOneBootstrap))
 
