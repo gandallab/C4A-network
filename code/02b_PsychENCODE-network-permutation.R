@@ -87,6 +87,7 @@ true_syngo_enrichment = ORA(true_network$gene[true_network$FDR < .05 & true_netw
                                  synGO$`human ortholog gene symbol`,
                                  true_network$gene, true_network$gene)
 
+
 pdf('results/manuscript/Figure_SXX-Network-Seed-Permutation-Enrichment.pdf',width = 8,height=5)
 par(mfrow=c(1,2))
 hist(boot$up_complement_OR, 1000, xlim=c(0,50), main = "", xlab = "Positive enrichment for \ncomplement pathway (OR)")
@@ -100,3 +101,4 @@ table(as.numeric(true_syngo_enrichment[[1]]) > boot$down_synGO_OR) / nrow(boot)
 legend("topright",legend = 'C4A\n83%ile', col='red', pch='-',bty = 'n')
 mtext('Seed gene permutation & network enrichment', side = 3, line = -2, cex=1.3, outer = TRUE)
 dev.off()
+
