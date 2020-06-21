@@ -64,13 +64,39 @@ runOneBootstrap = function(gene) {
   return(dfBootstrap)
 }
 
-for(i in seq(4501,25774,by=250)) {
+for(i in seq(1,25774,by=250)) {
   print(i)
   out_file = paste0("boot_", i, ".csv")
   if(!file.exists(out_file)) {
-    df_boot = do.call("rbind", lapply(as.list(rownames(datExpr_mid.ctl)[i:(i+99)]), runOneBootstrap));   
+    df_boot = do.call("rbind", lapply(as.list(rownames(datExpr_mid.ctl)[i:(i+249)]), runOneBootstrap));   
     write.csv(df_boot, file=out_file)
   }
 }
   
+
+
+# -- Analyze completed bootstraps
+options(stringsAsFactors = F)
+boot = read.csv("results/bootstraps/seed-gene/PEC-CTL-CN2-seed-gene-bootsraps.csv")
+true_network = read.csv("results/C4A-coexpressed-CN2-ctl-145.csv")
+
+true_complement_enrichment = ORA(true_network$gene[true_network$FDR < .05 & true_network$R > 0], 
+                                 complement_system$`Approved symbol`,
+                                 true_network$gene, true_network$gene)
+true_syngo_enrichment = ORA(true_network$gene[true_network$FDR < .05 & true_network$R < 0], 
+                                 synGO$`human ortholog gene symbol`,
+                                 true_network$gene, true_network$gene)
+
+
+par(mfrow=c(1,2))
+hist(boot$up_complement_OR, 1000, xlim=c(0,50), main = "", xlab = "Positive enrichment for \ncomplement pathway (OR)")
+abline(v=as.numeric(true_complement_enrichment[[1]]), col='red')
+table(as.numeric(true_complement_enrichment[[1]]) > boot$up_complement_OR) / nrow(boot)
+legend("topright",legend = 'C4A\n98%ile', col='red', pch='-',bty = 'n')
+
+hist(boot$down_synGO_OR, 100, xlim=c(0,25), main = "", xlab = "Negative enrichment\nfor synapse pathway (OR)")
+abline(v=as.numeric(true_syngo_enrichment[[1]]), col='red')
+table(as.numeric(true_syngo_enrichment[[1]]) > boot$down_synGO_OR) / nrow(boot)
+legend("topright",legend = 'C4A\n83%ile', col='red', pch='-',bty = 'n')
+mtext('Seed gene permutation & network enrichment', side = 3, line = -2, cex=1.3, outer = TRUE)
 
