@@ -1,7 +1,7 @@
-source("code/04_Fisher-exact-test.R")
+rm(list = ls())
 options(stringsAsFactors = FALSE)
 library(tidyverse)
-path <- "~/Github//C4A-network"
+path <- "/Users/minsookim/Desktop/C4A-network/"
 
 
 # 01. Effect of C4 copy number variation on gene expression
@@ -30,7 +30,7 @@ datExpr <- as.matrix(datExpr)
 library(cowplot)
 
 df <- datMeta %>% 
-  select(sample, diagnosis, structure_allele_best:C4_CN) %>% 
+  dplyr::select(sample, diagnosis, structure_allele_best:C4_CN) %>% 
   bind_cols(C4A = datExpr["ENSG00000244731",],
             C4B = datExpr["ENSG00000224389",])
 
@@ -95,8 +95,8 @@ p8 <- ggplot(df, aes(x = as.factor(C4_CN), y = C4B)) +
        y = expression(paste("Residualized ", italic("C4B"), " expression"))) + theme_classic() +
   theme(axis.title.y = element_blank())
 
-p <- plot_grid(p1, p2, p3, p4, p5, p6, p7, p8 + theme(legend.position="none"), 
-          nrow=2, align="v", axis="lr",
+p <- plot_grid(p1, p2, p3, p4, p5, p6, p7, p8 + theme(legend.position = "none"), 
+          nrow = 2, align = "v", axis = "lr",
           rel_heights = c(8,7.5))
 
 legend <- get_legend(p8)
@@ -104,7 +104,7 @@ legend <- get_legend(p8)
 pdf(paste0(path, "/results/C4-expression.pdf"), width = 10, height = 6)
 # Supplementary Figure 3
 
-plot_grid(p, legend, nrow=1, rel_widths=c(1, .1))
+plot_grid(p, legend, nrow = 1, rel_widths = c(1, .1))
 
 dev.off()
 
@@ -143,16 +143,13 @@ ggplot(df, aes(x = C4A, y = SLC39A10)) +
   guides(fill = FALSE) + ylim(5, 8.5) 
 
 
-# 03. Constructing C4A gene co-expression using all samples
+# 03. Constructing C4A gene co-expression network using control samples
 # ----------------------------------
 table(datMeta$C4A_CN)
 # 0   1   2   3   4 
 # 9 110 324  99  10 
 
-datExpr_low <- datExpr[, datMeta$C4A_CN < 2]
-datExpr_mid.ctl <- datExpr[, datMeta$C4A_CN == 2 & datMeta$Group == "CTL"]
-datExpr_mid <- datExpr[, datMeta$C4A_CN == 2]
-datExpr_hig <- datExpr[, datMeta$C4A_CN > 2]
+datExpr_mid <- datExpr[, datMeta$C4A_CN == 2 & datMeta$Group == "CTL"] # 145 samples
 
 prsCor = function(i, gene, datExpr) {
   c = cor.test(datExpr[i, ], datExpr[gene, ], use = "pairwise.complete.obs")
@@ -160,100 +157,76 @@ prsCor = function(i, gene, datExpr) {
   return(dfPrs)
 }
 
-dfC4A_low <- data.frame()
 dfC4A_mid <- data.frame()
-dfC4A_mid.ctl = data.frame()
-dfC4A_hig <- data.frame()
 
 for (i in 1:nrow(datExpr)) {
   if (i%%100 == 0) {print(i)}
-  
-  dfC4A_low <- rbind(dfC4A_low, prsCor(i, "ENSG00000244731", datExpr_low))
   dfC4A_mid <- rbind(dfC4A_mid, prsCor(i, "ENSG00000244731", datExpr_mid))
-  dfC4A_mid.ctl <- rbind(dfC4A_mid.ctl, prsCor(i, "ENSG00000244731", datExpr_mid.ctl))
-  dfC4A_hig <- rbind(dfC4A_hig, prsCor(i, "ENSG00000244731", datExpr_hig))
 }
 
-hist(dfC4A_low$P)
 hist(dfC4A_mid$P)
-hist(dfC4A_mid.ctl$P)
-hist(dfC4A_hig$P)
 
-dfC4A_low$FDR = p.adjust(dfC4A_low$P, "fdr")
-dfC4A_mid$FDR = p.adjust(dfC4A_mid$P, "fdr")
-dfC4A_mid.ctl$FDR = p.adjust(dfC4A_mid.ctl$P, "fdr")
-dfC4A_hig$FDR = p.adjust(dfC4A_hig$P, "fdr")
+dfC4A_mid$FDR <- p.adjust(dfC4A_mid$P, "fdr")
 
+gencode <- read.csv(paste0(path, "data/annotation.gene.gencodeV19.csv"))
+gencode <- gencode[match(rownames(datExpr), gencode$gene_id),]
 
-gencode = read.csv("data/annotation.gene.gencodeV19.csv")
-gencode = gencode[match(rownames(datExpr), gencode$gene_id),]
-
-# Control only C4A seeded networks
-this_df = cbind(gene=gencode$gene_name, dfC4A_mid.ctl)
-complement_system = readxl::read_xlsx("results/manuscript/TableS1.xlsx",sheet = 1)
-
-xtabs(~ (FDR < 0.05) + (R > 0), this_df)
+dfC4A_mid <- cbind(gene = gencode$gene_name, dfC4A_mid)
+xtabs(~ (FDR < 0.05) + (R > 0), dfC4A_mid)
+#           R > 0
+#FDR < 0.05 FALSE  TRUE
+#     FALSE 12335 10418
+#     TRUE   1152  1869
 
 
-# Complement Enrichment
-ORA(this_df$gene[this_df$FDR < .05 & this_df$R > 0], complement_system$`Approved symbol`,
-    this_df$gene, this_df$gene)
+# 04. Enrichment patterns
+# ----------------------------------
+source(paste0(path, "/code/04_Fisher-exact-test.R"))
+
+complement = read.table(paste0(path, "/results/complement-gene-sets.tsv"), sep = "\t", header = TRUE)
+complement = complement$gene[complement$set == "Complement (57 genes)"]
+
+# Over-representation of complement system
+ORA(dfC4A_mid$gene[dfC4A_mid$FDR < .05 & dfC4A_mid$R > 0], complement,
+    dfC4A_mid$gene, dfC4A_mid$gene)
 #OR               Fisher p              
-# "17.2141244653363" "4.03102279425738e-17"
+#17.2141244653363 4.03102279425738e-17
 
-ORA(this_df$gene[this_df$FDR < .05 & this_df$R < 0], complement_system$`Approved symbol`,
-    this_df$gene, this_df$gene)
-#OR               Fisher p              
-# 0   0.26
+ORA(dfC4A_mid$gene[dfC4A_mid$FDR < .05 & dfC4A_mid$R < 0], complement,
+    dfC4A_mid$gene, dfC4A_mid$gene)
+#OR Fisher p              
+#0  0.26
 
 # SynGO enrichment
-synGO = readxl::read_xlsx("data/GSEA-annotations/syngo_annotations.xlsx")
+synGO = readxl::read_xlsx(paste0(path, "data/GSEA-annotations/syngo_annotations.xlsx"))
 
-ORA(this_df$gene[this_df$FDR < .05 & this_df$R > 0], unique(synGO$`human ortholog gene symbol`),
-    this_df$gene, this_df$gene)
-ORA(this_df$gene[this_df$FDR < .05 & this_df$R < 0], unique(synGO$`human ortholog gene symbol`),
-    this_df$gene, this_df$gene)
-#          OR               Fisher p                 -95%CI                 +95%CI 
-# "3.7725740859901" "1.23567031237039e-34"     "3.10861053939515"     "4.55368635278887" 
+ORA(dfC4A_mid$gene[dfC4A_mid$FDR < .05 & dfC4A_mid$R > 0], unique(synGO$`human ortholog gene symbol`),
+    dfC4A_mid$gene, dfC4A_mid$gene)
+#OR               Fisher p
+#1.14730972759516 0.224729415660388 
 
-write.csv(file="results/C4A-coexpressed-CN2-ctl-145.csv", this_df)
+ORA(dfC4A_mid$gene[dfC4A_mid$FDR < .05 & dfC4A_mid$R < 0], unique(synGO$`human ortholog gene symbol`),
+    dfC4A_mid$gene, dfC4A_mid$gene)
+#OR              Fisher p
+#3.7725740859901 1.23567031237039e-34 
 
+# GO enrichment
 library(gProfileR)
-go.down = gprofiler(query = this_df$gene[this_df$FDR < .05 & this_df$R < 0], correction_method = 'fdr', max_set_size = 1000,
-                           organism = 'hsapiens', custom_bg = this_df$gene, src_filter = c("GO", "KEGG", "REAC"))
-go.down = data.frame(Set="C4A-negative", go.down)
-go.up = gprofiler(query = this_df$gene[this_df$FDR < .05 & this_df$R > 0],  correction_method = 'fdr', max_set_size = 1000, 
-                           organism = 'hsapiens', custom_bg = this_df$gene, src_filter = c("GO", "KEGG", "REAC"))
-go.up = data.frame(Set="C4A-positive", go.up)
+df <- dfC4A_mid[dfC4A_mid$FDR < .05 & dfC4A_mid$R < 0, ]
 
-write.csv(file="results/C4A-coexpressed-CN2-ctl-145-GO.csv", rbind(go.down, go.up))
-save(file="data/data_for_network_permutation.RData", datExpr_mid.ctl, gencode, complement_system, synGO)
+go.down <- gprofiler(query = df$gene[order(df$R)], 
+                     correction_method = "fdr", ordered_query = TRUE, custom_bg = dfC4A_mid$gene,
+                     min_set_size = 10, max_set_size = 1000, src_filter = "GO")
 
+go.down <- data.frame(Set = "C4A-negative", go.down)
 
+df <- dfC4A_mid[dfC4A_mid$FDR < .05 & dfC4A_mid$R > 0, ]
 
-# 04. Test Boostrap
-# ----------------------------------
-library(parallel)
-runOneBootstrap = function(gene) {
-  this_net= do.call("rbind", mclapply(1:nrow(datExpr), prsCor, gene, datExpr_mid.ctl,mc.cores = 6))
-  this_net$Gene = gencode$gene_name[match(this_net$Gene, gencode$gene_id)]
-  this_net$FDR = p.adjust(this_net$P,'fdr')
-  up_fdr = this_net$Gene[this_net$FDR < .05 & this_net$R > 0]
-  down_fdr = this_net$Gene[this_net$FDR < .05 & this_net$R < 0]
-  fisher_up_complement = ORA(up_fdr, complement_system$`Approved symbol`,
-                             gencode$gene_name, gencode$gene_name)
-  fisher_down_synGO = ORA(down_fdr, unique(synGO$`human ortholog gene symbol`),
-                             gencode$gene_name, gencode$gene_name)
-  dfBootstrap = data.frame(seed = gencode$gene_name[match(gene, gencode$gene_id)],
-                           up_fdr= length(up_fdr), down_fdr = length(down_fdr),
-                           up_complement_OR = as.numeric(fisher_up_complement[[1]]),
-                           up_complement_P = as.numeric(fisher_up_complement[[2]]),
-                           down_synGO_OR = as.numeric(fisher_down_synGO[[1]]),
-                           down_synGO_P = as.numeric(fisher_down_synGO[[2]]))
-  return(dfBootstrap)
-}
+go.up <- gprofiler(query = df$gene[order(df$R, decreasing = TRUE)], 
+                   correction_method = "fdr", ordered_query = TRUE, custom_bg = dfC4A_mid$gene,
+                   min_set_size = 10, max_set_size = 1000, src_filter = "GO")
+                   
+go.up <- data.frame(Set = "C4A-positive", go.up)
 
-
-df_boot = do.call("rbind", lapply(as.list(rownames(datExpr_mid.ctl)[1:100]), runOneBootstrap))
-df_boot100to1000 = do.call("rbind", lapply(as.list(rownames(datExpr_mid.ctl)[101:1000]), runOneBootstrap))
+#write.csv(file = paste0(path, "results/C4A-CN2-CTL-GO.csv"), rbind(go.down, go.up))
 
