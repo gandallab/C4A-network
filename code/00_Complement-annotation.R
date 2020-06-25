@@ -90,6 +90,6 @@ geneSets.ensg <- geneSets
 geneSets.ensg$gene <- annot$ensembl_gene_id[match(geneSets.ensg$gene, annot$external_gene_name)]
 geneSets.ensg <- geneSets.ensg[!is.na(geneSets.ensg$gene), ]
 
-#write.table(file = paste0(path, "results/complement_gene_sets.tsv"), geneSets, row.names = F, quote = F, sep = '\t')
-#write.table(file = paste0(path, "results/complement_gene_sets_ensg.tsv"), geneSets.ensg, row.names = F, quote = F, sep = '\t')
+write.table(file = paste0(path, "results/complement-gene-sets.tsv"), geneSets, row.names = F, quote = F, sep = '\t')
+#write.table(file = paste0(path, "results/complement-gene-sets-ensg.tsv"), geneSets.ensg, row.names = F, quote = F, sep = '\t')
 
