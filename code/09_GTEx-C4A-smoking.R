@@ -77,7 +77,8 @@ cov <- cov %>% as_tibble() %>% bind_cols(MHSMKSTS = as.factor(datMeta$MHSMKSTS),
                                          C4B = datExpr.norm["ENSG00000224389", ],
                                          C1 = as.numeric(datMeta$C1),
                                          C2 = as.numeric(datMeta$C2),
-                                         C3 = as.numeric(datMeta$C3))
+                                         C3 = as.numeric(datMeta$C3),
+                                         MHBRNPH = as.numeric(datMeta$MHBRNPH))
 
 # Linear mixed model using lme4 package 
 library(lme4)
@@ -87,29 +88,29 @@ cov1 <- cov[!is.na(cov$MHDRNKSTS), ]
 
 mod1 <- lmer(C4A ~ region + seqPC1 + seqPC2 + seqPC3 + seqPC4 + seqPC5 + seqPC6 + seqPC7 + seqPC8 + seqPC9 + 
                seqPC10 + seqPC11 + seqPC12 + seqPC13 + SMRIN + TRISCHD + DTHCODD + DTHHRDY + DTHRFG + SEX + 
-               AGE + C1 + C2 + C3 + (1|SUBJID), data = cov1, REML = FALSE)
+               AGE + C1 + C2 + C3 + MHBRNPH + (1|SUBJID), data = cov1, REML = FALSE)
 
 mod2 <- lmer(C4A ~ MHSMKSTS + region + seqPC1 + seqPC2 + seqPC3 + seqPC4 + seqPC5 + seqPC6 + seqPC7 + seqPC8 + seqPC9 + 
                seqPC10 + seqPC11 + seqPC12 + seqPC13 + SMRIN + TRISCHD + DTHCODD + DTHHRDY + DTHRFG + SEX + 
-               AGE + C1 + C2 + C3 + (1 |SUBJID), data = cov1, REML = FALSE)
+               AGE + C1 + C2 + C3 + MHBRNPH + (1 |SUBJID), data = cov1, REML = FALSE)
 
-anova(mod1, mod2) # p = 0.02467
+anova(mod1, mod2) # p = 0.00639
 
 as.numeric(2 * (logLik(mod2, REML = FALSE) - logLik(mod1, REML = FALSE)))
-pchisq(5.0467, 1, lower.tail = FALSE) # p = 0.02467
+pchisq(7.4368, 1, lower.tail = FALSE) # p = 0.00639
 
 # Kenward-Roger adjusted F-tests for REML.
 library(pbkrtest)
 
 mod1 <- lmer(C4A ~ region + seqPC1 + seqPC2 + seqPC3 + seqPC4 + seqPC5 + seqPC6 + seqPC7 + seqPC8 + seqPC9 + 
                seqPC10 + seqPC11 + seqPC12 + seqPC13 + SMRIN + TRISCHD + DTHCODD + DTHHRDY + DTHRFG + SEX + 
-               AGE + C1 + C2 + C3 + (1|SUBJID), data = cov1, REML = TRUE)
+               AGE + C1 + C2 + C3 + MHBRNPH + (1|SUBJID), data = cov1, REML = TRUE)
 
 mod2 <- lmer(C4A ~ MHSMKSTS + region + seqPC1 + seqPC2 + seqPC3 + seqPC4 + seqPC5 + seqPC6 + seqPC7 + seqPC8 + seqPC9 + 
                seqPC10 + seqPC11 + seqPC12 + seqPC13 + SMRIN + TRISCHD + DTHCODD + DTHHRDY + DTHRFG + SEX + 
-               AGE + C1 + C2 + C3 + (1 |SUBJID), data = cov1, REML = TRUE)
+               AGE + C1 + C2 + C3 + MHBRNPH + (1 |SUBJID), data = cov1, REML = TRUE)
 
-KRmodcomp(mod2, mod1) # p = 0.037
+KRmodcomp(mod2, mod1) # p = 0.01136
 
 # Parametric bootstrap
 set.seed(123)
@@ -119,14 +120,14 @@ for (i in 1:B) {
   ryield <- unlist(simulate(mod1))
   nmodr <- suppressMessages(lmer(ryield ~ region + seqPC1 + seqPC2 + seqPC3 + seqPC4 + seqPC5 + seqPC6 + seqPC7 + seqPC8 + seqPC9 + 
                                    seqPC10 + seqPC11 + seqPC12 + seqPC13 + SMRIN + TRISCHD + DTHCODD + DTHHRDY + DTHRFG + SEX + 
-                                   AGE + C1 + C2 + C3 + (1|SUBJID), data = cov1, REML = FALSE))
+                                   AGE + C1 + C2 + C3 + MHBRNPH + (1|SUBJID), data = cov1, REML = FALSE))
   amodr <- suppressMessages(lmer(ryield ~ MHSMKSTS + region + seqPC1 + seqPC2 + seqPC3 + seqPC4 + seqPC5 + seqPC6 + seqPC7 + seqPC8 + seqPC9 + 
                                    seqPC10 + seqPC11 + seqPC12 + seqPC13 + SMRIN + TRISCHD + DTHCODD + DTHHRDY + DTHRFG + SEX + 
-                                   AGE + C1 + C2 + C3 + (1|SUBJID), data = cov1, REML = FALSE))
+                                   AGE + C1 + C2 + C3 + MHBRNPH + (1|SUBJID), data = cov1, REML = FALSE))
   lrstat[i] <- 2 * (logLik(amodr, REML = FALSE) - logLik(nmodr, REML = FALSE))
 }
 
-(pval <- mean(lrstat > 5.0467)) # p = 0.031
+(pval <- mean(lrstat > 7.4368)) # p = 0.011
 
 # Three ways of assessing significance in lmm all give the same consistent results. 
-# Note that smoking status itself is not an ideal covariate that tracks the degree of smoking well (i.e. pack-years preferable), but it is what we have available. 
+# Note that smoking status itself is not an ideal covariate that tracks the degree of smoking well (i.e. pack-years preferable). 
