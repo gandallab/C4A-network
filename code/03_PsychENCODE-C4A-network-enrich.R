@@ -1,12 +1,15 @@
 rm(list = ls())
 options(stringsAsFactors = FALSE)
+
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network"
+library(gProfileR)
+library(EWCE)
 
 
-# 01. Examine seeded network size wrt C4A copy number
-# ----------------------------------
-load(paste0(path, "/data/C4A-network.RData"))
+
+# 01. Examine seeded network size wrt C4A copy number ----
+
+load("./data/PsychENCODE/C4A-network.RData")
 network <- network %>% as_tibble() %>% print(width = Inf)
 
 df <- tibble()
@@ -26,7 +29,7 @@ df <- df %>%
 
 df$CN <- factor(df$CN, levels = c("CN > 2", "CN = 3", "CN = 2", "CN = 1", "CN < 2"))
 
-jpeg(paste0(path, "/results/network-size.jpeg"), units = "in", width = 5.5, height = 5, res = 300)
+jpeg("./results/network-size.jpeg", units = "in", width = 5.5, height = 5, res = 300)
 # Supplementary Figure 5
 
 df %>% 
@@ -43,11 +46,12 @@ cor.test(network$`01.R`, network$`34.R`) # 0.65
 cor.test(network$`2.R`, network$`34.R`) # 0.83
 
 
-# 02. PsychENCODE WGCNA module enrichment
-# ----------------------------------
-source(paste0(path, "/code/04_Fisher-exact-test.R"))
 
-PEmodules <- read.table(paste0(path, "/data/PsychENCODE-WGCNA-modules.txt"), header = TRUE)
+# 02. PsychENCODE WGCNA module enrichment ----
+
+source("./code/04_Fisher-exact-test.R")
+
+PEmodules <- read.table("./data/PsychENCODE/PsychENCODE-WGCNA-modules.txt", header = TRUE)
 
 # Test top 500 positively co-expressed genes
 geneset <- network %>% arrange(desc(`34.R`)) %>% select(Gene) %>% dplyr::slice(1:500) %>% t()
@@ -72,7 +76,7 @@ ast_q <- rep("", nrow(df))
 ast_q[df$P.adj < 0.05 & df$OR > 1] <- "*"
 df$ast_q <- ast_q
 
-jpeg(paste0(path, "/results/module-pos.jpeg"), units = "in", width = 3.5, height = 3, res = 300)
+jpeg("./results/module-pos.jpeg", units = "in", width = 3.5, height = 3, res = 300)
 # Figure 2C
 
 df %>% 
@@ -84,9 +88,8 @@ df %>%
 dev.off()
 
 
-# 03. gProfiler pathway enrichment
-# ----------------------------------
-library(gProfileR)
+
+# 03. gProfiler pathway enrichment ----
 
 # Test top 500 negatively co-expressed genes
 geneset <- network %>% arrange(`34.R`) %>% dplyr::slice(1:500)
@@ -100,7 +103,7 @@ if (nrow(go) > 5) {
     arrange(p.value) %>% dplyr::slice(1:5)
 }
 
-jpeg(paste0(path, "/results/pathway-neg.jpeg"), units = "in", width = 4, height = 3, res = 300)
+jpeg("./results/pathway-neg.jpeg", units = "in", width = 4, height = 3, res = 300)
 # Supplementary Figure 8
 
 go %>% 
@@ -111,12 +114,11 @@ go %>%
 dev.off()
 
 
-# 04. Expression-weighted cell-type enrichment (EWCE)
-# ----------------------------------
-library(EWCE)
+
+# 04. Expression-weighted cell-type enrichment (EWCE) ----
 
 # Pre-calculated expression specificity metrics downloaded from www.hjerling-leffler-lab.org/data/scz_singlecell
-load(paste0(path, "/data/ctd_allKI.rda"))
+load("./data/ctd_allKI.rda")
 
 # Tidy column names
 colnames(ctd[[1]]$mean_exp) = colnames(ctd[[1]]$specificity) = 
@@ -140,12 +142,13 @@ reps <- 10000
 level <- 1
 
 full_results <- bootstrap.enrichment.test(sct_data = ctd, hits = mouse.hits, bg = mouse.bg, 
-                                         reps = reps, annotLevel = level)
+                                          reps = reps, annotLevel = level)
 
-jpeg(paste0(path, "/results/cell-type-neg.jpeg"), units = "in", width = 20, height = 6, res = 300)
+jpeg("./results/cell-type-neg.jpeg", units = "in", width = 20, height = 6, res = 300)
 # Supplementary Figure 10
 
 ewce.plot(full_results$results, mtc_method = "BH")
 
 dev.off()
+
 

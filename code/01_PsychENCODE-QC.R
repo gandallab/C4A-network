@@ -1,13 +1,16 @@
 rm(list = ls())
 options(stringsAsFactors = FALSE)
+
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network"
-
-
-# 01. Load PsychENCODE data for primary analysis
-# ----------------------------------
 library(SummarizedExperiment)
-load(paste0(path, "/data/se.CombinedDataForPrimaryAnalysis.RData"))
+library(edgeR)
+library(nlme)
+
+
+
+# 01. Load PsychENCODE data for primary analysis ----
+
+load("./data/PsychENCODE/se.CombinedDataForPrimaryAnalysis.RData")
 
 datMeta <- colData(se.Primary)
 
@@ -20,8 +23,9 @@ datExpr <- assays(se.Primary)$counts
 datMeta$sex <- factor(datMeta$sex, levels = c("M", "F"))
 
 
-# 02. Construct model matrix for covariates
-# ----------------------------------
+
+# 02. Construct model matrix for covariates ----
+
 mod1 <- model.matrix(~ Group + age + age.squared + study + sex + PMI + RIN + RIN.squared + 
                       individualIDSource + tissue + seqPC3.squared + seqPC1 + seqPC10 + seqPC11 + 
                       seqPC12 + seqPC13 + seqPC14 + seqPC16 + seqPC18 + seqPC19 + seqPC2 + seqPC20 + 
@@ -35,9 +39,7 @@ mod1 <- mod1[, !colnames(mod1) %in% c("individualIDSourceNICHD", "individualIDSo
 
 mod0 <- mod1[, !grepl("Group", colnames(mod1))] # Make a baseline model with all terms but group
 
-library(edgeR)
 dge.voom <- voom(calcNormFactors(DGEList(datExpr), method = "TMM"), mod1, plot = TRUE)
-
 datExpr <- dge.voom$E
 
 datMeta$individualIDSource <- as.character(datMeta$individualIDSource)
@@ -46,8 +48,9 @@ datMeta$individualIDSource[datMeta$individualIDSource %in%
 datMeta$individualIDSource <- factor(datMeta$individualIDSource)
 
 
-# 03. Regress out covariates except the diagnosis effect
-# ----------------------------------
+
+# 03. Regress out covariates except the diagnosis effect ----
+
 Y <- as.matrix(dge.voom$E)
 X <- mod1
 beta <- (solve(t(X) %*% X) %*% t(X)) %*% t(Y)
@@ -56,11 +59,12 @@ datExpr.AllRegressed <- Y - t(X[, c(5:ncol(X))] %*% beta[c(5:ncol(X)), ])
 datMeta <- as.data.frame(datMeta)
 datMeta$X <- rownames(datMeta)
 
-save(datMeta, datExpr.AllRegressed, file = paste0(path, "/data/PsychENCODE_regressed.RData"))
+save(datMeta, datExpr.AllRegressed, file = "./data/PsychENCODE/PsychENCODE_regressed.RData")
 
 
-# 04. Effect of age and sex on C4A gene expression
-# ----------------------------------
+
+# 04. Effect of age and sex on C4A gene expression ----
+
 summary(lm(datExpr["ENSG00000244731", ] ~ Group + age + age.squared + study + sex + PMI + RIN + RIN.squared + 
              individualIDSource + tissue + seqPC3.squared + seqPC1 + seqPC10 + seqPC11 + seqPC12 + seqPC13 + 
              seqPC14 + seqPC16 + seqPC18 + seqPC19 + seqPC2 + seqPC20 + seqPC21 + seqPC22 + seqPC23 + seqPC24 + 
@@ -73,7 +77,7 @@ df <- data.frame(C4A = datExpr.AllRegressed.NotAge["ENSG00000244731", datMeta$ti
 df <- df[df$diagnosis == "Control" | df$diagnosis == "Schizophrenia", ]
 df$diagnosis <- factor(df$diagnosis, levels = c("Schizophrenia","Control")) # 593 SCZ, 1137 CTL samples
 
-pdf(paste0(path, "/results/age-expr.pdf"), width = 9.0, height = 3.7)
+pdf("./results/age-expr.pdf", width = 9.0, height = 3.7)
 # Figure 5D
 
 ggplot(df, aes(x = age, y = C4A, col = diagnosis)) + 
@@ -83,9 +87,10 @@ ggplot(df, aes(x = age, y = C4A, col = diagnosis)) +
 dev.off()
 
 
-# 05. Differential gene expression of the complement system
-# ----------------------------------
-imputed <- read.table(paste0(path, "/data/PsychENCODE-C4-imputed.txt"), header = TRUE)
+
+# 05. Differential gene expression of the complement system ----
+
+imputed <- read.table("./data/PsychENCODE/PsychENCODE-C4-imputed.txt", header = TRUE)
 datMeta <- as.data.frame(datMeta)
 datMeta$X <- rownames(datMeta)
 datMeta <- datMeta %>% filter(tissue == "frontal cortex")
@@ -97,7 +102,7 @@ datMeta_withCN$individualIDSource[datMeta_withCN$individualIDSource %in%
                              c("SMRI \"Consortium\"")] <- ""
 datExpr_withCN <- datExpr[, datMeta_withCN$X] %>% as.matrix()
 
-complement <- read.table(paste0(path, "/results/complement-gene-sets.tsv"), sep = "\t", header = TRUE)
+complement <- read.table("./results/complement-gene-sets.tsv", sep = "\t", header = TRUE)
 complement <- complement$gene[complement$set == "Complement (57 genes)"]
 complement <- complement[which(complement %in% rowData(se.Primary)$gene_name)] # 42 genes brain-expressed
 
@@ -105,9 +110,7 @@ C4A_expr <- as.numeric(datExpr[which(rowData(se.Primary)$gene_name == "C4A"), ])
 C4A_expr_withCN <- as.numeric(datExpr_withCN[which(rowData(se.Primary)$gene_name == "C4A"), ])
 tt <- data.frame()
 
-library(nlme)
-
-for(gene in complement[-c(8,9)]) {
+for (gene in complement[-c(8,9)]) {
   print(gene)
   expr <- datExpr[which(rowData(se.Primary)$gene_name == gene), ]
   

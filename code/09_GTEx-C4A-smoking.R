@@ -1,17 +1,19 @@
 rm(list = ls())
 options(stringsAsFactors = FALSE)
+
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network"
+library(lme4)
+library(pbkrtest)
 
 
-# 01. Effect of smoking and other relevant non-genetic factors on C4A gene expression
-# ----------------------------------
+
+# 01. Effect of smoking and other relevant non-genetic factors on C4A gene expression ----
 
 # Load data and metadata
-load(paste0(path, "/data/GTEx_regressed_lmm_RSEM_final.RData"))
+load("./data/GTEx/GTEx_regressed_lmm_RSEM_final.RData")
 
 # Load metadata from GTEx v8
-datMeta_v8 <- read_csv(paste0(path, "/data/phs000424.v8.pht002742.v8.p2.c1.GTEx_Subject_Phenotypes.GRU.csv"))
+datMeta_v8 <- read_csv("./data/GTEx/phs000424.v8.pht002742.v8.p2.c1.GTEx_Subject_Phenotypes.GRU.csv")
 # phs000424.v8.pht002742.v8.GTEx_Subject_Phenotypes.data_dict.csv is the corresponding key file
 
 # Merge metadata v7 and v8
@@ -81,7 +83,6 @@ cov <- cov %>% as_tibble() %>% bind_cols(MHSMKSTS = as.factor(datMeta$MHSMKSTS),
                                          MHBRNPH = as.numeric(datMeta$MHBRNPH))
 
 # Linear mixed model using lme4 package 
-library(lme4)
 
 # LRT 
 cov1 <- cov[!is.na(cov$MHDRNKSTS), ]
@@ -99,9 +100,7 @@ anova(mod1, mod2) # p = 0.00639
 as.numeric(2 * (logLik(mod2, REML = FALSE) - logLik(mod1, REML = FALSE)))
 pchisq(7.4368, 1, lower.tail = FALSE) # p = 0.00639
 
-# Kenward-Roger adjusted F-tests for REML.
-library(pbkrtest)
-
+# Kenward-Roger adjusted F-tests for REML
 mod1 <- lmer(C4A ~ region + seqPC1 + seqPC2 + seqPC3 + seqPC4 + seqPC5 + seqPC6 + seqPC7 + seqPC8 + seqPC9 + 
                seqPC10 + seqPC11 + seqPC12 + seqPC13 + SMRIN + TRISCHD + DTHCODD + DTHHRDY + DTHRFG + SEX + 
                AGE + C1 + C2 + C3 + MHBRNPH + (1|SUBJID), data = cov1, REML = TRUE)

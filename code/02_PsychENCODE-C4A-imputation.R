@@ -1,17 +1,20 @@
 rm(list = ls())
 options(stringsAsFactors = FALSE)
+
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network/"
+library(cowplot)
+library(gProfileR)
 
 
-# 01. Effect of C4 copy number variation on gene expression
-# ----------------------------------
-imputed <- read.table(paste0(path, "/data/PsychENCODE-C4-imputed.txt"), header = TRUE)
+
+# 01. Effect of C4 copy number variation on gene expression ----
+
+imputed <- read.table("./data/PsychENCODE/PsychENCODE-C4-imputed.txt", header = TRUE)
 imputed$C4_CN <- imputed$C4A_CN + imputed$C4B_CN
 imputed <- imputed %>% dplyr::select(-c(diagnosis, sex, study)) # datMeta already contains this information
 
 # Load PsychENCODE expression + metadata
-load(paste0(path,"/data/PsychENCODE_regressed.RData"))
+load("./data/PsychENCODE/PsychENCODE_regressed.RData")
 datExpr <- datExpr.AllRegressed
 rm(datExpr.AllRegressed)
 
@@ -27,8 +30,6 @@ datMeta <- cbind(datMeta, imputed[match(datMeta$individualID, imputed$sample),])
 datExpr <- as.matrix(datExpr)
 
 # Data visualization
-library(cowplot)
-
 df <- datMeta %>% 
   dplyr::select(sample, diagnosis, structure_allele_best:C4_CN) %>% 
   bind_cols(C4A = datExpr["ENSG00000244731",],
@@ -101,7 +102,7 @@ p <- plot_grid(p1, p2, p3, p4, p5, p6, p7, p8 + theme(legend.position = "none"),
 
 legend <- get_legend(p8)
 
-pdf(paste0(path, "/results/C4-expression.pdf"), width = 10, height = 6)
+pdf("./results/C4-expression.pdf", width = 10, height = 6)
 # Supplementary Figure 3
 
 plot_grid(p, legend, nrow = 1, rel_widths = c(1, .1))
@@ -109,8 +110,9 @@ plot_grid(p, legend, nrow = 1, rel_widths = c(1, .1))
 dev.off()
 
 
-# 02. Moderation of C4 gene co-expression by C4 copy number variation
-# ----------------------------------
+
+# 02. Moderation of C4 gene co-expression by C4 copy number variation ----
+
 datMeta <- datMeta %>% mutate(pd_avg = (dose1 + dose2)/2) %>% filter(pd_avg >= 0.7) 
 # 552 samples w/ high-confidence C4 imputation results
 datExpr <- datExpr %>% as.data.frame() %>% dplyr::select(datMeta$X) %>% as.matrix()
@@ -143,8 +145,9 @@ ggplot(df, aes(x = C4A, y = SLC39A10)) +
   guides(fill = FALSE) + ylim(5, 8.5) 
 
 
-# 03. Constructing C4A gene co-expression network using control samples
-# ----------------------------------
+
+# 03. Constructing C4A gene co-expression network using control samples ----
+
 table(datMeta$C4A_CN)
 # 0   1   2   3   4 
 # 9 110 324  99  10 
@@ -164,11 +167,11 @@ for (i in 1:nrow(datExpr)) {
   dfC4A_mid <- rbind(dfC4A_mid, prsCor(i, "ENSG00000244731", datExpr_mid))
 }
 
-hist(dfC4A_mid$P)
+hist(dfC4A_mid$P, breaks = 50)
 
 dfC4A_mid$FDR <- p.adjust(dfC4A_mid$P, "fdr")
 
-gencode <- read.csv(paste0(path, "data/annotation.gene.gencodeV19.csv"))
+gencode <- read.csv("./data/annotation.gene.gencodeV19.csv")
 gencode <- gencode[match(rownames(datExpr), gencode$gene_id),]
 
 dfC4A_mid <- cbind(gene = gencode$gene_name, dfC4A_mid)
@@ -179,11 +182,12 @@ xtabs(~ (FDR < 0.05) + (R > 0), dfC4A_mid)
 #     TRUE   1152  1869
 
 
-# 04. Enrichment patterns
-# ----------------------------------
-source(paste0(path, "/code/04_Fisher-exact-test.R"))
 
-complement = read.table(paste0(path, "/results/complement-gene-sets.tsv"), sep = "\t", header = TRUE)
+# 04. Enrichment patterns ----
+
+source("./code/04_Fisher-exact-test.R")
+
+complement = read.table("./results/complement-gene-sets.tsv", sep = "\t", header = TRUE)
 complement = complement$gene[complement$set == "Complement (57 genes)"]
 
 # Over-representation of complement system
@@ -198,7 +202,7 @@ ORA(dfC4A_mid$gene[dfC4A_mid$FDR < .05 & dfC4A_mid$R < 0], complement,
 #0  0.26
 
 # SynGO enrichment
-synGO = readxl::read_xlsx(paste0(path, "data/GSEA-annotations/syngo_annotations.xlsx"))
+synGO = readxl::read_xlsx("./data/GSEA-annotations/syngo_annotations.xlsx")
 
 ORA(dfC4A_mid$gene[dfC4A_mid$FDR < .05 & dfC4A_mid$R > 0], unique(synGO$`human ortholog gene symbol`),
     dfC4A_mid$gene, dfC4A_mid$gene)
@@ -211,7 +215,6 @@ ORA(dfC4A_mid$gene[dfC4A_mid$FDR < .05 & dfC4A_mid$R < 0], unique(synGO$`human o
 #3.7725740859901 1.23567031237039e-34 
 
 # GO enrichment
-library(gProfileR)
 df <- dfC4A_mid[dfC4A_mid$FDR < .05 & dfC4A_mid$R < 0, ]
 
 go.down <- gprofiler(query = df$gene[order(df$R)], 
@@ -228,5 +231,6 @@ go.up <- gprofiler(query = df$gene[order(df$R, decreasing = TRUE)],
                    
 go.up <- data.frame(Set = "C4A-positive", go.up)
 
-#write.csv(file = paste0(path, "results/C4A-CN2-CTL-GO.csv"), rbind(go.down, go.up))
+#write.csv(file = "./results/C4A-CN2-CTL-GO.csv", rbind(go.down, go.up))
+
 

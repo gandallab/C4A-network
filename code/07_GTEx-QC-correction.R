@@ -1,12 +1,17 @@
 rm(list = ls())
 options(stringsAsFactors = FALSE)
+
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network"
+library(edgeR)
+library(WGCNA)
+library(corrplot)
+library(lme4)
 
 
-# 01. Further exclude samples that are processed differently or suffer from brain-related disorders
-# ----------------------------------
-load(paste0(path, "/data/GTEX_v7_datExpr_counts_brain_RSEM.RData")) # Output from 04_GTEx-QC-filter.R script
+
+# 01. Further exclude samples that are processed differently or suffer from brain-related disorders ----
+
+load("./data/GTEx/GTEX_v7_datExpr_counts_brain_RSEM.RData")
 datExpr.counts <- gtex.rsem
 rm(gtex.rsem)
 
@@ -42,45 +47,44 @@ datMeta$DTHCODD[datMeta$DTHCODD >= 504] <- "3wplus"
 datMeta$DTHCODD[is.na(datMeta$DTHCODD)] <- "unknown"
 
 
-# 02. Visualize raw count data
-# ----------------------------------
+
+# 02. Visualize raw count data ----
+
 boxplot(datExpr.counts, range = 0, main = "Raw Counts", xlab = "GTEx samples")
 boxplot(log2(1 + datExpr.counts), range = 0, main = "log2 (counts + 1)", xlab = "GTEx samples")
 
 i = 1; plot(density(log2(.001 + datExpr.counts[,i])), col = as.factor(datMeta$region)[i], main = "Gene read counts", 
-          xlab = "log2(raw_counts + .001)", xlim = c(-15,30), ylim = c(0,0.45))
+          xlab = "log2(raw_counts + .001)", xlim = c(-15, 30), ylim = c(0, 0.45))
 
 for (i in 2:ncol(datExpr.counts)) {
     lines(density(log2(.001 + datExpr.counts[,i])), col = as.factor(datMeta$region)[i])
 }
 
 # Calculate and visualize top 10 principle components
-mds = cmdscale(dist(t(log2(datExpr.counts + 1))), k = 10)
-colnames(mds) = paste0("PC", 1:ncol(mds))
+mds <- cmdscale(dist(t(log2(datExpr.counts + 1))), k = 10)
+colnames(mds) <- paste0("PC", 1:ncol(mds))
 
-pairs(mds, col = factor(datMeta$region), main="Region", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$region)), fill = 1:10, cex = .4)
+pairs(mds, col = factor(datMeta$region), main = "Region", pch = 19, cex = 0.5)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$region)), fill = 1:10, cex = .4)
 
 pairs(mds, col = factor(datMeta$sex), main = "Sex", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$sex)), fill = 1:2, cex = .4)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$sex)), fill = 1:2, cex = .4)
 
 pairs(mds, col = factor(datMeta$AGE), main = "Age", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$AGE)), fill = 1:6, cex = .4)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$AGE)), fill = 1:6, cex = .4)
 
 pairs(mds, col = factor(datMeta$DTHHRDY), main = "DeathProcess", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$DTHHRDY)), fill = 1:5, cex = .4)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$DTHHRDY)), fill = 1:5, cex = .4)
 
-library(WGCNA)
-tree = hclust(as.dist(1 - bicor(log2(datExpr.counts + 1)), "average"))
+tree <- hclust(as.dist(1 - bicor(log2(datExpr.counts + 1)), "average"))
 
 plotDendroAndColors(tree, colors = cbind(labels2colors(datMeta$region), labels2colors(datMeta$sex), 
                                          labels2colors(datMeta$AGE), labels2colors(datMeta$DTHHRDY)), 
                     groupLabels = c("Region", "Sex", "Age", "DeathProcess"))
 
 
-# 03. Visualize gene-filtered & normalized data
-# ----------------------------------
-library(edgeR)
+
+# 03. Visualize gene-filtered & normalized data ----
 
 # Filter genes using edgeR package
 genes_to_keep <- apply(cpm(datExpr.counts) > 0.1, 1, sum) > 0.25 * ncol(datExpr.counts)
@@ -94,9 +98,9 @@ datExpr.norm <- cpm(calcNormFactors(DGEList(datExpr.counts[genes_to_keep, ]), me
 boxplot(datExpr.norm, range = 0, main = "Filtered, normalized counts")
 
 i = 1; plot(density(datExpr.norm[,i]), col = as.factor(datMeta$region)[i], main = "Gene read counts", 
-          xlab = "log2(raw_counts + .001)", xlim = c(-15,30), ylim = c(0,0.45))
+          xlab = "log2(raw_counts + .001)", xlim = c(-15, 30), ylim = c(0, 0.45))
 
-for (i in 2:ncol(datExpr.norm)){
+for (i in 2:ncol(datExpr.norm)) {
     lines(density(datExpr.norm[, i]), col = as.factor(datMeta$region)[i])
 }
 
@@ -105,16 +109,16 @@ mds <- cmdscale(dist(t(datExpr.norm)), k = 10)
 colnames(mds) <- paste0("PC", 1:ncol(mds))
 
 pairs(mds, col = factor(datMeta$region), main = "Region", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$region)), fill = 1:13, cex = .4)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$region)), fill = 1:13, cex = .4)
 
 pairs(mds, col = factor(datMeta$sex), main = "Sex", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$sex)), fill = 1:2, cex = .4)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$sex)), fill = 1:2, cex = .4)
 
 pairs(mds, col = factor(datMeta$AGE), main = "Age", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$AGE)), fill = 1:6, cex = .5)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$AGE)), fill = 1:6, cex = .5)
 
 pairs(mds, col = factor(datMeta$DTHHRDY), main = "DeathProcess", pch = 19, cex = 0.5)
-par(xpd = TRUE, oma = c(1,1,1,1)); legend("topright", levels(factor(datMeta$DTHHRDY)), fill = 1:5, cex = .5)
+par(xpd = TRUE, oma = c(1, 1, 1, 1)); legend("topright", levels(factor(datMeta$DTHHRDY)), fill = 1:5, cex = .5)
 
 tree <- hclust(as.dist(1 - bicor(datExpr.norm)), "average")
 plotDendroAndColors(tree, colors = cbind(labels2colors(datMeta$region), labels2colors(datMeta$sex), 
@@ -124,12 +128,13 @@ plotDendroAndColors(tree, colors = cbind(labels2colors(datMeta$region), labels2c
 View(cbind(as.character(datMeta$region), labels2colors(datMeta$region)))
 
 
-# 04. Remove outliers by connectivity Z-score
-# ----------------------------------
+
+# 04. Remove outliers by connectivity Z-score ----
+
 # Calculate connectivity z-scores from the normalized data
 excludesampleID <- data.frame()
 
-par(mfrow = c(1,1))
+par(mfrow = c(1, 1))
 for (i in 1:length(unique(datMeta$region))) {
   normadj <- bicor(datExpr.norm[, datMeta$region == unique(datMeta$region)[i]])
   netsummary <- fundamentalNetworkConcepts(normadj)
@@ -154,8 +159,9 @@ datExpr.norm <- cpm(calcNormFactors(DGEList(datExpr.counts[genes_to_keep, match(
 table(datMeta$region)
 
 
-# 05. Construct principal components from sequencing metrics
-# ----------------------------------
+
+# 05. Construct principal components from sequencing metrics ----
+
 seqMet <- c('SME2MPRT', 'SMCHMPRS', 'SMNTRART', 'SMMAPRT', 'SMEXNCRT',
             'SMGNSDTC', 'SME1MMRT', 'SMSFLGTH', 'SMMPPD', 
             'SMNTERRT', 'SMRRNANM', 'SMRDTTL', 'SMVQCFL', 'SMTRSCPT', 
@@ -165,7 +171,7 @@ seqMet <- c('SME2MPRT', 'SMCHMPRS', 'SMNTRART', 'SMMAPRT', 'SMEXNCRT',
             'SMRRNART', 'SME1MPRT', 'SME2PCTS') # 'SMRDLGTH' skipped due to zero variance
 datSeq <- datMeta[, seqMet] # 32 columns
 
-seqPCs <- cmdscale(dist((scale(datSeq))), k=15, eig = TRUE)
+seqPCs <- cmdscale(dist((scale(datSeq))), k = 15, eig = TRUE)
 colnames(seqPCs$points) <- paste0('seqPC', 1:15)
 
 plot(seqPCs$points[,1], seqPCs$points[,2], main = 'PCA of scaled sequencing metric')
@@ -178,13 +184,11 @@ plot(seqPCs$eig / sum(seqPCs$eig), main = 'Variance Explained')
 plot(datMeta$SMRIN, datMeta$SMMPUNRT)
 summary(lm(datMeta$SMMPUNRT ~ datMeta$SMRIN))
 
-library(corrplot)
 corrplot(cor(cbind(seqPCs$points, datSeq), use = "pairwise.complete.obs"), tl.cex = .5)
 
 
-# 06. Regress out unwanted biological and technical covariates
-# ----------------------------------
-library(lme4)
+
+# 06. Regress out unwanted biological and technical covariates ----
 
 # Generate covariate matrix
 cov <- cbind(seqPCs$points[,1], seqPCs$points[,2], seqPCs$points[,3], seqPCs$points[,4], seqPCs$points[,5],
@@ -255,11 +259,12 @@ for (j in l_converge) {
 }
 
 # Save normalized and regressed expression data for downstream analyses
-save(datMeta, datExpr.reg, datExpr.norm, file = paste0(path, "/data/GTEx_regressed_lmm_RSEM_final.RData"))
+save(datMeta, datExpr.reg, datExpr.norm, file = "./data/GTEx/GTEx_regressed_lmm_RSEM_final.RData")
 
 
-# 07. Spatial distribution of C4A gene expression
-# ----------------------------------
+
+# 07. Spatial distribution of C4A gene expression ----
+
 datMeta <- datMeta %>% filter(!region %in% c("Substantia_nigra", "Amygdala"))
 datMeta <- datMeta %>% 
   mutate(region = ifelse(region == "Anterior_cingulate_cortex_BA24", "ACC",
@@ -277,7 +282,7 @@ datExpr.reg <- datExpr.reg %>% as.data.frame() %>% dplyr::select(datMeta$SAMPID)
 df <- data.frame(C4A = datExpr.reg["ENSG00000244731", ],
                 region = datMeta$region)
 
-pdf(paste0(path, "/results/GTEx-expr.pdf"), width = 6.5, height = 3)
+pdf("./results/GTEx-expr.pdf", width = 6.5, height = 3)
 # Figure 5B
 
 ggplot(df, aes(x = region, y = C4A)) + 

@@ -1,24 +1,24 @@
 rm(list = ls())
 options(stringsAsFactors = FALSE)
+
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network"
 
 
-# 01. Construct C4A-seeded network in GTEx frontal cortex samples
-# ----------------------------------
+
+# 01. Construct C4A-seeded network in GTEx frontal cortex samples ----
 
 # Load data and metadata
-load(paste0(path, "/data/GTEx_regressed_lmm_RSEM_final.RData"))
+load("./data/GTEx/GTEx_regressed_lmm_RSEM_final.RData")
 
 length(unique(datMeta$sub_num)) # 153 unique samples
 length(unique(datMeta$region)) # 10 unique brain regions
 sum(colnames(datExpr.reg) == datMeta$SAMPID)
 
-gencode <- read.csv(paste0(path, "/data/annotation.gene.gencodeV19.csv"))
+gencode <- read.csv("./data/annotation.gene.gencodeV19.csv")
 gencode <- gencode[match(rownames(datExpr.reg), gencode$gene_id), ]
 
 # Load C4 imputation data
-imputed <- read.table(paste0(path, "/data/GTEx-C4-imputed.txt"), header = TRUE)
+imputed <- read.table("./data/GTEx/GTEx-C4-imputed.txt", header = TRUE)
 
 datMeta$C4A_CN <- rep(10, nrow(datMeta))
 
@@ -36,7 +36,7 @@ table(datMeta$region)
 xtabs(~ region + C4A_CN, datMeta)
 
 # Calculate C4A co-expression
-prsCor = function(i, gene, datExpr){
+prsCor = function(i, gene, datExpr) {
   c <- cor.test(datExpr[i,], datExpr[gene,], use = 'pairwise.complete.obs')
   dfPrs <- data.frame(Gene = rownames(datExpr)[i], R = c$estimate, P = c$p.value)
   return(dfPrs)
@@ -54,4 +54,5 @@ hist(dfcorBA9$P)
 dfcorBA9$FDR = p.adjust(dfcorBA9$P, method = "fdr")
 dfcorBA9$Gene = gencode$gene_name[match(dfcorBA9$Gene, gencode$gene_id)]
 sum(dfcorBA9$FDR < 0.05) # 6032 genes
+
 

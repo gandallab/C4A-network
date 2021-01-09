@@ -1,38 +1,42 @@
 rm(list = ls())
 options(stringsAsFactors = FALSE)
+
 library(tidyverse)
-path <- "/Users/minsookim/Desktop/C4A-network"
-
-
-# 01. Load data and annotations
-# ----------------------------------
 library(clusterProfiler)
+library(ggrepel)
+library(gridExtra)
+library(grid)
+
+
+
+# 01. Load data and annotations ----
 
 # Load sex-specific C4A coexpression data from PsychENCODE
-load(paste0(path, "/data/C4A-network-PsychENCODE-by-sex.RData"))
+load("./data/PsychENCODE/C4A-network-PsychENCODE-by-sex.RData")
 
 # Load MSigDB gene sets -- GO and Hallmark
 geneSets <- data.frame()
-geneSets <- rbind(geneSets, read.gmt(paste0(path, "/data/GSEA-annotations/c5.all.v7.1.symbols.gmt")))
-geneSets <- rbind(geneSets, read.gmt(paste0(path, "/data/GSEA-annotations/h.all.v7.1.symbols.gmt")))
+geneSets <- rbind(geneSets, read.gmt("./data/GSEA-annotations/c5.all.v7.1.symbols.gmt"))
+geneSets <- rbind(geneSets, read.gmt("./data/GSEA-annotations/h.all.v7.1.symbols.gmt"))
 
 # Load SynGO gene sets
-syngo <- as.data.frame(readxl::read_xlsx(paste0(path, "/data/GSEA-annotations/syngo_annotations.xlsx"))[,c(7,4)])
+syngo <- as.data.frame(readxl::read_xlsx("./data/GSEA-annotations/syngo_annotations.xlsx")[, c(7,4)])
 colnames(syngo) <- colnames(geneSets)
 geneSets <- rbind(geneSets, syngo)
 
 # Load Lake et al. cell type clusters
-lake <- read.csv(paste0(path, "/data/GSEA-annotations/Lake_scClusters_fromSupplement.csv"))[,c(2,1)]
+lake <- read.csv("./data/GSEA-annotations/Lake_scClusters_fromSupplement.csv")[, c(2,1)]
 colnames(lake) <- colnames(geneSets)
-lake$ont <- paste0("Lake_", substr(lake$ont,0,3))
+lake$term <- paste0("Lake_", substr(lake$term, 0, 3))
 geneSets <- rbind(geneSets, lake)
 
 # Combine Male and Female dataframes
-df = do.call('cbind', list(M = df.m, F = df.f))
+df = do.call("cbind", list(M = df.m, F = df.f))
 
 
-# 02. Run GSEA on M, F, and M vs F separately
-# ----------------------------------
+
+# 02. Run GSEA on M, F, and M vs F separately ----
+
 # Run GSEA on Female results -- rank genes by Pearson R
 geneList.F <- df$F.R
 names(geneList.F) <- df$F.Gene
@@ -58,8 +62,9 @@ go.MvsF <- GSEA(geneList.MvsF, TERM2GENE = geneSets, pvalueCutoff = 1, nPerm = 1
 gseaplot(go.MvsF,"GO_GABA_ERGIC_SYNAPSE")
 
 
-# 03. Compare result from M and F GSEA
-# ----------------------------------
+
+# 03. Compare result from M and F GSEA ----
+
 df.combined <- merge(go.M@result, go.F@result, by.x = "ID", by.y = "ID", all = T)
 df.combined$NES_difference <- df.combined$NES.x - df.combined$NES.y # NES = normalized enrichment statistic
 df.combined$NES_mean <- .5*(df.combined$NES.x + df.combined$NES.y)
@@ -74,8 +79,9 @@ df.combined$Y_significant[df.combined$qvalues.y < .1] <- T
 df.combined$logPdiff <- with(df.combined, -log10(pvalue.x)*sign(NES.x) - -log10(pvalue.y)*sign(NES.y))
 
 
-# 04. Plot top 25 concordant and discordant enrichmenbt terms
-# ----------------------------------
+
+# 04. Plot top 25 concordant and discordant enrichmenbt terms ----
+
 to_plot1 <- with(df.combined, c(order(NES.x,decreasing = T)[1:25], 
                                 order(NES.x,decreasing = F)[1:25], 
                                 order(NES.y,decreasing = T)[1:25],
@@ -97,8 +103,6 @@ df.combined$ID <- df.combined$ID %>%
   str_replace("HALLMARK_", "") 
 
 df.combined$qvalues.x <- p.adjust(df.combined$p.adjust.x, method = "bonferroni")
-
-library(ggrepel)
 
 g1 <- ggplot(df.combined[sign(df.combined$NES.x) == sign(df.combined$NES.y) & 
                            (df.combined$p.adjust.x < .05 & df.combined$p.adjust.y<.05), ], 
@@ -151,16 +155,14 @@ g2.big <- ggplot(df.combined[sign(df.combined$NES.x) == -sign(df.combined$NES.y)
   geom_text_repel(size = 3,segment.size = .1, force = 10) +  
   ggtitle("Sex specific pathways")
 
-# ggsave(g1,file='~/Desktop/C4A_sexCondordant.pdf',device = cairo_pdf,width = 10, height=10,units = 'in')
-# ggsave(g2,file='~/Desktop/C4A_sexSpecific.pdf',device = cairo_pdf,width = 14, height=14,units = 'in')
-# ggsave(g1.big,file='~/Desktop/C4A_sexCondordant_big.pdf',device = cairo_pdf,width = 14, height=14, units = 'in')
-# ggsave(g2.big,file='~/Desktop/C4A_sexSpecific_big.pdf',device = cairo_pdf,width = 14 ,height=14,units = 'in')
+# ggsave(g1,file = './results/C4A_sexCondordant.pdf', device = cairo_pdf, width = 10, height=10, units = 'in')
+# ggsave(g2,file = './results/C4A_sexSpecific.pdf', device = cairo_pdf, width = 14, height=14, units = 'in')
+# ggsave(g1.big,file = './results/C4A_sexCondordant_big.pdf', device = cairo_pdf, width = 14, height=14, units = 'in')
+# ggsave(g2.big,file = './results/C4A_sexSpecific_big.pdf', device = cairo_pdf, width = 14 , height=14, units = 'in')
 
 
-# 05. Plot Individual GO Terms for M and F
-# ----------------------------------
-library(gridExtra)
-library(grid)
+
+# 05. Plot Individual GO Terms for M and F ----
 
 term <- "GO_AXONEME_ASSEMBLY"
 gseaplot(go.M, geneSetID = term, title = "Male", ylim = c(0, 1))
@@ -180,8 +182,9 @@ g2 <- gseaplot(go.M, geneSetID = term, title = "Male", ylim = c(0, 1), by = "run
 grid.arrange(grobs = list(g1,g2), ncol = 1, top = textGrob(term, gp = gpar(fontsize = 20, font = 3)))
 
 
-# 06. Barplot of top concordant and discoard GO term enrichments
-# ----------------------------------
+
+# 06. Barplot of top concordant and discoard GO term enrichments ----
+
 to_plot <- c("GO_COMPLEMENT_ACTIVATION", "GO_HUMORAL_IMMUNE_RESPONSE", "Lake_Ast", "Lake_Mic", 
              "GO_INTERFERON_GAMMA_MEDIATED_SIGNALING_PATHWAY", "GO_TRANSFORMING_GROWTH_FACTOR_BETA_BINDING",
              "Lake_Ex5", "GO_ATP_SYNTHESIS_COUPLED_ELECTRON_TRANSPORT", "GO_RESPIRASOME", "Lake_Ex4", 
@@ -208,8 +211,7 @@ g1 <- ggplot(this_df, aes(x = reorder(tolower(ID), NES.x), y = NES, fill = Sex))
   facet_wrap(Group ~ . , scales = "free_y") + theme_bw() + 
   scale_fill_manual(values = list("M" = "lightblue", "F" = "pink"))
 
-ggsave(g1, file = paste0(path, "/results/PsychENCODE-MvsF.pdf"), width = 10, height = 4)
-
+ggsave(g1, file = "./results/PsychENCODE-MvsF.pdf", width = 10, height = 4)
 
 # Look at cell type
 idx = grep("Lake_Ex", df.combined$ID)
@@ -223,4 +225,5 @@ this_df = rbind(data.frame(ID = df.combined$ID[idx], NES = df.combined$NES.x[idx
 ggplot(this_df, aes(x = ID, y = NES, fill = Sex)) + 
   geom_bar(stat = "identity", position = position_dodge()) + 
   coord_flip() + theme_bw() 
+
 
