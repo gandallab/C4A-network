@@ -4,7 +4,7 @@ Code repository associated with:
 Minsoo Kim, Jillian R. Haney, Pan Zhang, Leanna M. Hernandez, Lee-kai Wang, Laura Perez-Cano, Loes M. Olde Loohuis, Luis de la Torre-Ubieta, Michael J. Gandal    
 **doi:** https://doi.org/10.1038/s41593-021-00847-z
 
-Contact: minsookim@mednet.ucla.edu
+Contact: mmkim1210@gmail.com
 
 <br>
 
